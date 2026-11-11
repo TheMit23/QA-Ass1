@@ -593,6 +593,29 @@ public class TestLibrary {
     }
 
 
+    @Test
+    void GivenNotificationFails_WhenGetBookByISBN_ThenPrintFailureMessage() {
+        // Arrange
+        arrangeValidBookUserAndReviews();
+        doThrow(new NotificationException("Send failed"))
+                .when(spyUser).sendNotification(anyString());
+
+        PrintStream originalOut = System.out;
+        ByteArrayOutputStream capturedOut = new ByteArrayOutputStream();
+
+        // Act
+        try {
+            System.setOut(new PrintStream(capturedOut));
+            library.getBookByISBN(validInputIsbn, validInputUserId);
+        } finally {
+            System.setOut(originalOut);
+        }
+
+        // Assert
+        assertEquals("Notification failed!" + System.lineSeparator(),
+                capturedOut.toString());
+    }
+
 
     @Test
     void GivenUserNotRegistered_WhenGetBookByISBN_ThenReturnBook() {
@@ -656,6 +679,26 @@ public class TestLibrary {
         verify(mockDatabaseService, times(1)).returnBook(validIsbn);
     }
 
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {
+            "978030640615",       // 12 digits
+            "97803064061570",     // 14 digits
+            "978030640615X",      // contains a letter
+            "978030640615 ",      // contains a space
+            "9780306406158",      // wrong check digit
+            "978-0-306-40615-8"  // hyphenated, wrong check digit
+    })
+    void GivenInvalidIsbn_WhenReturnBook_ThenThrowIllegalArgumentException(String invalidIsbn) {
+        // Act
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> library.returnBook(invalidIsbn));
+
+        // Assert
+        assertEquals("Invalid ISBN.", exception.getMessage());
+        verifyNoInteractions(mockDatabaseService);
+    }
 
     @Test
     void GivenBookNotInDatabase_WhenReturnBook_ThenThrowBookNotFoundException() {
